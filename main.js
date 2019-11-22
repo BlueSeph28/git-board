@@ -3,14 +3,16 @@ const packageJson = require('./package.json');
 const program = require('commander');
 const Promise = require('bluebird');
 const PromiseQueue = require('promise-queue');
+const fs = require('fs');
+const crypto = require('crypto');
 PromiseQueue.configure(Promise);
-const prettyjson = require('prettyjson');
+var readlineSync = require('readline-sync');
 
 const github = require('./github');
 const trello = require('./trello');
 const textgen = require('./textgen');
 
-
+const cipherAlgorithm = "aes-256-ctr";
 
 const collect = function(val, memo) {
   memo.push(val);
@@ -19,28 +21,171 @@ const collect = function(val, memo) {
 program
   .version(packageJson.version)
   .usage('-u <github-user> -r <github-repo> [-g github-token] -k <trello-key> -t <trello-token> -b <trello-board> [KEYWORDS...]')
+  .option('-e, --env <file>', 'Get environment variables from a file')
   .option('-u, --github-user <user>', 'Github user or organization hosting the repository')
   .option('-r, --github-repo <repo>', 'Github repository name')
   .option('-m, --milestone-name <milestone>', 'Milestone to syncronize')
+  .option('-l, --in-progress-label <label>', 'Label for in progress issue identify - Default: In Progress')
   .option('-g, --github-token <repo>', 'optional Github OAuth2 token')
   .option('-k, --trello-key <key>', 'Trello key')
   .option('-t, --trello-token <token>', 'Trello auth token')
   .option('-b, --trello-board <id>', 'Trello board ID')
-  .option('-a, --archive-from-inbox', 'Archive cards for closed issues in inbox')
   .option('-p, --include-pull-requests', 'Include pull requests')
   .option('-f, --full-text', 'Reproduce full issue text on trello')
+  .option('-c, --create-config <name>', 'Create config file specifying name')
   .option('-n, --no-commit', 'Download and calculate modifications but do not write them to Trello')
   .option('-w, --warn <KEYWORD>', 'Warn about mentions of KEYWORD', collect, [])
   .parse(process.argv);
 
+if(program.env) {
+  let rawData = JSON.parse(fs.readFileSync(program.env));
+
+  if(rawData.encrypted) {
+
+    let password = readlineSync.question('Password: ', {
+      hideEchoBack: true
+    });
+
+    let decipher = crypto.createDecipher(cipherAlgorithm,password);
+
+    let dec = decipher.update(rawData.githubUser,'hex','utf8');
+    dec += decipher.final('utf8')
+    program.githubUser = dec;
+
+    decipher = crypto.createDecipher(cipherAlgorithm,password)
+    dec = decipher.update(rawData.githubRepo,'hex','utf8');
+    dec += decipher.final('utf8')
+    program.githubRepo = dec;
+
+    decipher = crypto.createDecipher(cipherAlgorithm,password)
+    dec = decipher.update(rawData.githubToken,'hex','utf8');
+    dec += decipher.final('utf8')
+    program.githubToken = dec;
+
+    decipher = crypto.createDecipher(cipherAlgorithm,password)
+    dec = decipher.update(rawData.trelloKey,'hex','utf8');
+    dec += decipher.final('utf8')
+    program.trelloKey = dec;
+
+    decipher = crypto.createDecipher(cipherAlgorithm,password)
+    dec = decipher.update(rawData.trelloToken,'hex','utf8');
+    dec += decipher.final('utf8')
+    program.trelloToken = dec;
+
+    decipher = crypto.createDecipher(cipherAlgorithm,password)
+    dec = decipher.update(rawData.trelloBoard,'hex','utf8');
+    dec += decipher.final('utf8')
+    program.trelloBoard = dec;
+  }
+  else {
+    program.githubUser = rawData.githubUser;
+    program.githubRepo = rawData.githubRepo;
+    program.githubToken = rawData.githubToken;
+    program.trelloKey = rawData.trelloKey;
+    program.trelloToken = rawData.trelloToken;
+    program.trelloBoard = rawData.trelloBoard;
+  }
+
+  if(rawData.milestoneName)
+    program.milestoneName = rawData.milestoneName;
+
+  if(rawData.inProgressLabel)
+    program.inProgressLabel = rawData.inProgressLabel;
+
+  if(rawData.includePullRequests)
+    program.includePullRequests = rawData.includePullRequests;
+
+  if(rawData.fullText)
+    program.fullText = rawData.fullText;
+
+  if(rawData.noCommit)
+    program.noCommit = rawData.noCommit;
+
+  if(rawData.warn)
+    program.warn = rawData.warn;
+}
+
 if (!program.githubUser ||
-   !program.githubRepo ||
-   !program.trelloKey ||
-   !program.trelloToken ||
-   !program.trelloBoard) {
-     program.help();
-     return 0;
-   }
+  !program.githubRepo ||
+  !program.trelloKey ||
+  !program.trelloToken ||
+  !program.trelloBoard) {
+    program.help();
+    return 0;
+}
+
+if(program.createConfig){
+  let objectToWrite = {};
+
+  let password = readlineSync.question('Insert a password for your keys: ', {
+    hideEchoBack: true
+  });
+
+  let repeatPassword = readlineSync.question('Repeat your password: ', {
+    hideEchoBack: true
+  });
+
+  if(password != repeatPassword){
+    console.log("Passwords doens't match");
+    return 0;
+  }
+
+  let cipher = crypto.createCipher(cipherAlgorithm,password);
+
+  let dec = cipher.update(program.githubUser,'utf8','hex');
+  dec += cipher.final('hex');
+  objectToWrite.githubUser = dec;
+
+  cipher = crypto.createCipher(cipherAlgorithm,password)
+  dec = cipher.update(program.githubRepo,'utf8','hex');
+  dec += cipher.final('hex');
+  objectToWrite.githubRepo = dec;
+
+  cipher = crypto.createCipher(cipherAlgorithm,password)
+  dec = cipher.update(program.trelloKey,'utf8','hex');
+  dec += cipher.final('hex');
+  objectToWrite.trelloKey = dec;
+
+  cipher = crypto.createCipher(cipherAlgorithm,password)
+  dec = cipher.update(program.trelloToken,'utf8','hex');
+  dec += cipher.final('hex');
+  objectToWrite.trelloToken = dec;
+
+  cipher = crypto.createCipher(cipherAlgorithm,password)
+  dec = cipher.update(program.trelloBoard,'utf8','hex');
+  dec += cipher.final('hex');
+  objectToWrite.trelloBoard = dec;
+
+  if(program.milestoneName)
+    objectToWrite.milestoneName = program.milestoneName;
+  if(program.inProgressLabel)
+    objectToWrite.inProgressLabel = program.inProgressLabel;
+  if(program.githubToken){
+    cipher = crypto.createCipher(cipherAlgorithm,password)
+    dec = cipher.update(program.githubToken,'utf8','hex');
+    dec += cipher.final('hex');
+    objectToWrite.githubToken = dec;
+  }
+  objectToWrite.includePullRequests = program.includePullRequests ? true : false;
+  objectToWrite.fullText = program.fullText ? true : false;
+  objectToWrite.noCommit = program.noCommit ? true : false;
+  if(program.warn)
+    objectToWrite.warn = program.warn;
+  objectToWrite.encrypted = true;
+
+  fs.writeFile(program.createConfig, JSON.stringify(objectToWrite), function(err) {
+
+    if(err) {
+        return console.log(err);
+    }
+
+    console.log(`Config file was created as ${program.createConfig}`);
+  }); 
+}
+
+
+if(!program.inProgressLabel)
+   program.inProgressLabel = "In Progress";
    
 
 trello.auth(program.trelloKey, program.trelloToken);
@@ -83,11 +228,11 @@ const labelsP = trello.getLabelsOnBoard(program.trelloBoard)
   return {
     nameToId,
     idToName
-  };}).then(function(res) { require('jsonfile').writeFileSync('cache_labelsP.json', res);  return res; });
+  };}).then(res => res);
 
-let totalIssuesOnTrello = 1000000;
-let totalIssuesToCreate = 1000000;
-let totalIssuesToMove = 1000000;
+let totalIssuesOnTrello = 0;
+let totalIssuesToCreate = 0;
+let totalIssuesToMove = 0;
 const maxCards = 900;
 
 const allCardsP = trello.getCardsOnBoard(program.trelloBoard)
@@ -110,15 +255,12 @@ const allCardsP = trello.getCardsOnBoard(program.trelloBoard)
   trelloItem.comments = comments;
   return trelloItem;
 }))
-.then(function(res) { 
-  require('jsonfile').writeFileSync('cache_allCardsP.json', res);  return res; 
-});
+.then(res => res);
   if (program.includePullRequests) {
     openIssuesAndCommentsP = github.openIssuesAndCommentsAsync(program.githubUser, program.githubRepo, milestone);
   } else {
     openIssuesAndCommentsP = github.openIssuesAndCommentsAsync(program.githubUser, program.githubRepo, milestone, issue => !issue.hasOwnProperty('pull_request'));
   }
-openIssuesAndCommentsP.tap(res => require('jsonfile').writeFileSync('cache_openIssuesAndCommentsP.json', res));
 
 const fullDownloadP = Promise.resolve({})
 .then(data => allCardsP.then(trelloItems => openIssuesAndCommentsP.then(function(githubItems) {
@@ -156,7 +298,7 @@ const fullDownloadP = Promise.resolve({})
     }
     return result;
   })())
-.then(function(res) { require('jsonfile').writeFileSync('cache_fullDownloadP.json', res);  return res; });
+.then(res => res);
 
 const checkIssuesP = fullDownloadP
 .tap(() => totalIssuesToCreate = 0)
@@ -166,7 +308,32 @@ const checkIssuesP = fullDownloadP
 .each(function(issue) {
   issue.parsed = textgen.parseFullIssue(program.githubUser, program.githubRepo, keywords, program.warn)(issue.github);
   if (issue.trello) {
-    // Possible update
+
+    let isInProgress = issue.github.issue.labels.find(element => element.name == program.inProgressLabel);
+
+    if(isInProgress && !issue.trello.inProgress) {
+      totalIssuesToMove++;
+      issue.move = true;
+      trello.moveCardToListAsync(issue.trello.card.id, inProgressListId, 0).then(() => {
+        console.log(`Card ${issue.trello.card.id} moved`);
+      });
+    }
+    else if(!isInProgress && issue.github.issue.state == 'open' && !issue.trello.toDo) {
+      totalIssuesToMove++;
+      issue.move = true;
+      trello.moveCardToListAsync(issue.trello.card.id, toDoListId, 0).then(() => {
+        console.log(`Card ${issue.trello.card.id} moved`);
+      });
+    }
+    else if(issue.github.issue.state == 'closed' && !issue.trello.done) {
+      totalIssuesToMove++;
+      issue.move = true;
+      trello.moveCardToListAsync(issue.trello.card.id, doneListId, 0).then(() => {
+      console.log(`Card ${issue.trello.card.id} moved`);
+      });
+    }
+    else 
+    issue.move = false;
     if (issue.trello.card.desc !== issue.parsed.desc) { issue.updateDesc = true; }
     let newComments = [];
     for (let mention of Array.from(issue.parsed.mentions)) {
@@ -181,7 +348,6 @@ const checkIssuesP = fullDownloadP
     if (newComments.length) { issue.newComments = newComments; }
     const newLabels = (Array.from(issue.parsed.labels).filter((label) => !Array.from(issue.trello.labels).includes(label)));
     if (newLabels.length) { issue.newLabels = newLabels; }
-    // Possible closed and archive
     if ((issue.github.issue != null ? issue.github.issue.state : undefined) === 'closed') {
       if (!Array.from(issue.trello.labels).includes('CLOSED')) {
         if (issue.newLabels) {
@@ -190,35 +356,27 @@ const checkIssuesP = fullDownloadP
           issue.newLabels = ['CLOSED'];
         }
       }
-      if (issue.trello.inbox) { return issue.archive = true; }
     }
   } else {
-    // New issue
     if (issue.parsed.labels.length || !keywords.length) {
       issue.create = true;
       return totalIssuesToCreate++;
     }
   }}).tap(function(issues) {
   let issue;
-  console.log('');
-  console.log('');
-  console.log(`Total number of cards currently on Trello: ${totalIssuesOnTrello}`);
+  console.log(`\n\nTotal number of cards currently on Trello: ${totalIssuesOnTrello}`);
   console.log(`Total number of cards to move: ${totalIssuesToMove}`);
   console.log(`Number of cards to create now: ${totalIssuesToCreate}`);
   if ((totalIssuesOnTrello + totalIssuesToCreate) > maxCards) {
-    console.log('ERROR: Creating more issues will break the Trello API. A workaround must be found and implemented.');
+    console.log('ERROR: Cannot create more issues, you\'ve reached max of cards.');
   }
-  console.log('');
-  console.log('');
-  console.log('========== NEW ISSUES ==========');
+  console.log('\n\n========== NEW ISSUES ==========');
   for (issue of Array.from(issues)) {
     if (issue.create) {
       console.log(`${issue.parsed.title}`);
     }
   }
-  console.log('');
-  console.log('');
-  console.log('========== UPDATED ISSUES ==========');
+  console.log('\n\n========== UPDATED ISSUES ==========');
   for (issue of Array.from(issues)) {
     if (issue.updateDesc || issue.newComments || issue.newLabels) {
       console.log(`${issue.parsed.title}:`);
@@ -235,9 +393,9 @@ const checkIssuesP = fullDownloadP
       console.log('');
     }
   }
-  console.log('\n\n========== CLOSED ISSUES ==========');
+  console.log('\n\n========== MOVED ISSUES ==========');
   for (issue of Array.from(issues)) {
-    if (issue.archive) {
+    if (issue.move) {
       console.log(`${issue.parsed.title}`);
     }
   }
@@ -263,11 +421,13 @@ if (program.commit) {
   .tap(function(issues) {
     queue.add(() => Promise.reduce(issues, function(_, issue) {
       if ((totalIssuesOnTrello + totalIssuesToCreate) > maxCards) {
-        console.log('Creating more issues will break the Trello API. A workaround must be found and implemented.');
+        console.log('ERROR: Cannot create more issues, you\'ve reached max of cards.');
         return null;
       } else if (issue.create) {
         let listIdP;
-          if(issue.github.issue.state === "open")
+          if(issue.github.issue.labels.find(element => element.name == program.inProgressLabel))
+            listIdP = inProgressListIdP;
+          else if(issue.github.issue.state === "open")
             listIdP = toDoListIdP;
           else
             listIdP = doneListIdP;
@@ -305,10 +465,7 @@ if (program.commit) {
         console.log(`Adding new label \"${newLabel}\" to issue \"${issue.trello.card.name}\"`);
         return trello.addLabelToCardAsync(issue.trello.card.id, trelloLabels.nameToId[newLabel]);})));
     }
-    if (issue.archive && program.archiveFromInbox) {
-      console.log(`Archiving card \"${issue.trello.card.name}\"`);
-      trello.archiveCardAsync(issue.trello.card.id);
-    }
+    // trello.archiveCardAsync(issue.trello.card.id);
     return null;
   });
 }
