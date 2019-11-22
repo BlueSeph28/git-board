@@ -1,0 +1,38 @@
+{
+  "name": "git-board",
+  "version": "1.0.0",
+  "description": "Github issues to trello sync. This syncronize closed and open issues to a trello board with ordered lists and cards.",
+  "main": "main.js",
+  "dependencies": {
+    "@octokit/rest": "^16.35.0",
+    "bluebird": "^3.7.1",
+    "commander": "^4.0.1",
+    "node-trello": "^1.3.0",
+    "prettyjson": "^1.2.1",
+    "promise-queue": "^2.2.5"
+  },
+  "devDependencies": {
+    "jsonfile": "^5.0.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlueSeph28/git-board.git"
+  },
+  "keywords": [
+    "trello",
+    "github",
+    "sync",
+    "board",
+    "card",
+    "list"
+  ],
+  "author": "Luis Fernando Lopez Ruiz",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BlueSeph28/git-board/issues"
+  },
+  "homepage": "https://github.com/BlueSeph28/git-board#readme"
+}
