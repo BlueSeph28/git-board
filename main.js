@@ -22,6 +22,7 @@ program
   .version(packageJson.version)
   .usage('-u <github-user> -r <github-repo> [-g github-token] -k <trello-key> -t <trello-token> -b <trello-board> [KEYWORDS...]')
   .option('-e, --env <file>', 'Get environment variables from a file')
+  .option('-p, --password <password>', 'Password for environtment file')
   .option('-u, --github-user <user>', 'Github user or organization hosting the repository')
   .option('-r, --github-repo <repo>', 'Github repository name')
   .option('-m, --milestone-name <milestone>', 'Milestone to syncronize')
@@ -41,10 +42,14 @@ if(program.env) {
   let rawData = JSON.parse(fs.readFileSync(program.env));
 
   if(rawData.encrypted) {
+    let password = "";
 
-    let password = readlineSync.question('Password: ', {
-      hideEchoBack: true
-    });
+    if(program.password)
+      password = program.password;
+    else
+      password = readlineSync.question('Password: ', {
+        hideEchoBack: true
+      });
 
     let decipher = crypto.createDecipher(cipherAlgorithm,password);
 
@@ -115,19 +120,24 @@ if (!program.githubUser ||
 }
 
 if(program.createConfig){
+  let password = "";
   let objectToWrite = {};
 
-  let password = readlineSync.question('Insert a password for your keys: ', {
-    hideEchoBack: true
-  });
+  if(program.password)
+      password = program.password;
+  else {
+    let password = readlineSync.question('Insert a password for your keys: ', {
+      hideEchoBack: true
+    });
 
-  let repeatPassword = readlineSync.question('Repeat your password: ', {
-    hideEchoBack: true
-  });
+    let repeatPassword = readlineSync.question('Repeat your password: ', {
+      hideEchoBack: true
+    });
 
-  if(password != repeatPassword){
-    console.log("Passwords doens't match");
-    return 0;
+    if(password != repeatPassword){
+      console.log("Passwords doens't match");
+      return 0;
+    }
   }
 
   let cipher = crypto.createCipher(cipherAlgorithm,password);
