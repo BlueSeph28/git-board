@@ -42,3 +42,7 @@ https://trello.com/1/authorize?key=_Key_here_&name=Issue+Importer+Prototype&resp
 ## How to get Github Token
 
 https://github.com/settings/tokens
+
+To do
+
+- Sync deleted labels

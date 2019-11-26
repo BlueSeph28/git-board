@@ -58,7 +58,8 @@ const parseLabels = function(issue, labels) {
     .toUpperCase();
   return (() => {
     const result = [];
-    for (let label of Array.from(labels)) {       if (issueText.indexOf(label.toUpperCase()) > -1) {
+    for (let label of Array.from(labels)) {
+      if(issue.issue.labels.find(element => element.name == label)) {
         result.push(label);
       }
     }
