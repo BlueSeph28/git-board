@@ -477,7 +477,6 @@ if (program.commit) {
         return trello.updateCardDescriptionAsync(issue.trello.card.id, issue.parsed.desc);
       });
     }
-    console.log(issue.updateDue);
     if(issue.updateDue) {
       queue.add(function() {
         console.log(`Updating due of issue \"${issue.trello.card.name}\"`);

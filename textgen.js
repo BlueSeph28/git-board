@@ -39,10 +39,8 @@ const parseDue = function(issue) {
   let date = null;
   if(rawDate){
     rawDate = rawDate[0].substring(6);
-    console.log(rawDate);
     date = new Date(rawDate);
     date.setDate(date.getDate());
-    console.log(date);
   }
   return date;
 };
