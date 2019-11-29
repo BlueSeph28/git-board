@@ -41,7 +41,7 @@ var apiCall = function(log, request, arg0, arg1, retriesLeft) {
 exports.getCardsOnBoard = boardId => apiCall(`Downloading all cards on board ${boardId}...`,
   trello.getAsync, '/1/boards/' + boardId + '/cards', {
     limit: 1000,
-    fields: 'desc,name,shortUrl,idLabels,idList'
+    fields: 'desc,name,shortUrl,idLabels,idList,due,dueComplete'
   }
 );
 
@@ -68,14 +68,16 @@ exports.getCommentsOnCard = cardId => apiCall(`Downloading all comments on card 
   }
 );
 
-exports.addCardAsync = function(listId, title, desc) {
+exports.addCardAsync = function(listId, title, desc, due, dueState) {
   if (desc == null) { desc = ''; }
   return apiCall(`Adding card \"${title}\" to list ${listId}...`,
     trello.postAsync, '/1/cards', {
       name: title,
       idList: listId,
       desc,
-      pos: 'top'
+      pos: 'top',
+      due: due,
+      dueComplete: dueState
     }
   );
 };
@@ -98,6 +100,14 @@ exports.addLabelToCardAsync = (cardId, labelId) => apiCall(`Adding label to card
 exports.updateCardDescriptionAsync = (cardId, desc) => apiCall(`Updating description of card ${cardId}...`,
   trello.putAsync, '/1/cards/' + cardId + '/desc',
     {value: desc});
+
+exports.updateDueDateAsync = (cardId, date) => apiCall(`Adding due date to card ${cardId}...`,
+  trello.putAsync, '/1/cards/' + cardId + '/due',
+    {value: date});
+
+exports.updateDueStateAsync = (cardId, state) => apiCall(`Adding due date to card ${cardId}...`,
+    trello.putAsync, '/1/cards/' + cardId + '/dueComplete',
+      {value: state});
 
 exports.moveCardToListAsync = function(cardId, listId, pos) {
   if (pos == null) { pos = 'top'; }

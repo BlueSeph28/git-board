@@ -1,6 +1,7 @@
 exports.normalize = s => s.replace(/\r\n/g, '\n')
  .replace(/\r/g, '\n')
  .replace(/<!--[\s\S]*?-->\n*/gm, '')
+ .replace(/>due: .{8,27}/g, '')
  .trim();
 
 const truncateLength = 800;
@@ -9,16 +10,14 @@ const parseTitle = function(issue, user, repo) {
   const type = issue.hasOwnProperty('pull_request') ? 'PR' : 'I';
   //"[#{user}/#{repo}: \##{issue.number}] #{issue.title}"
   //"[#{repo}] #{issue.title} (\##{issue.number})"
-  return `[${user}/${repo}] ${issue.title} (${type} \#${issue.number})`;
+  return `${issue.title} (${type} \#${issue.number})`;
 };
 
-const parseDesc = function(issue, user, repo) {
+const parseDesc = function(issue) {
   const type = issue.hasOwnProperty('pull_request') ? 'PR' : 'I';
-  // The first line of description in trello is the identifier
   let desc = `URL: ${issue.html_url}\n`;
-  // The second line is formatted to copy-paste to markdown
   const cleantitle = issue.title.replace(/`/g, '\'');
-  desc = desc + `\`**[${user}/${repo}] ${cleantitle} ([${type} \#${issue.number}](${issue.html_url}))**  \`\n`;
+  desc = desc + `\`**${cleantitle} ([${type} \#${issue.number}])**  \`\n`;
   if (issue.closed_by && issue.closed_at) {
     desc = desc + `:x: Issue closed by [${issue.closed_by.login}](${issue.closed_by.html_url}) on ${new Date(issue.closed_at).toDateString()}\n`;
   }
@@ -34,6 +33,24 @@ const parseDesc = function(issue, user, repo) {
   }
   return desc.trim();
 };
+
+const parseDue = function(issue) {
+  let rawDate = issue.body.match(/>due: .{8,27}/g);
+  let date = null;
+  if(rawDate){
+    rawDate = rawDate[0].substring(6);
+    console.log(rawDate);
+    date = new Date(rawDate);
+    date.setDate(date.getDate());
+    console.log(date);
+  }
+  return date;
+};
+
+const parseDueState = function(issue) {
+  return issue.state == 'closed';
+};
+
 
 const parseIssue = (issue, user, repo) => ({
   title: parseTitle(issue, user, repo),
@@ -62,6 +79,9 @@ const parseLabels = function(issue, labels) {
       if(issue.issue.labels.find(element => element.name == label)) {
         result.push(label);
       }
+    }
+    if(issue.issue.state == "closed") {
+      result.push('CLOSED');
     }
     return result;
   })();
@@ -113,7 +133,7 @@ $`)
 
 
 exports.parseFullIssue = (user, repo, labels, warnKeywords) => (function(issue) {
-  const ret = parseIssue(issue.issue, user, repo);
+  const ret = parseIssue(issue.issue);
   // Sanity check
   if (issue.issue.number !== exports.numberFromDesc(user, repo)(ret.desc)) {
     console.log('===== DESC =====');
@@ -124,5 +144,7 @@ exports.parseFullIssue = (user, repo, labels, warnKeywords) => (function(issue) 
   ret.comments = parseComments(issue.comments);
   ret.labels = parseLabels(issue, labels);
   ret.mentions = parseMentions(issue, warnKeywords);
+  ret.dueDate = parseDue(issue.issue);
+  ret.dueState = parseDueState(issue.issue);
   return ret;
 });

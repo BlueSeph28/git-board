@@ -38,6 +38,8 @@ program
   .option('-w, --warn <KEYWORD>', 'Warn about mentions of KEYWORD', collect, [])
   .parse(process.argv);
 
+var keywords = program.args;
+
 if(program.env) {
   let rawData = JSON.parse(fs.readFileSync(program.env));
 
@@ -108,6 +110,9 @@ if(program.env) {
 
   if(rawData.warn)
     program.warn = rawData.warn;
+
+  if(rawData.keywords)
+    keywords = rawData.keywords;
 }
 
 if (!program.githubUser ||
@@ -179,6 +184,9 @@ if(program.createConfig){
   objectToWrite.includePullRequests = program.includePullRequests ? true : false;
   objectToWrite.fullText = program.fullText ? true : false;
   objectToWrite.noCommit = program.noCommit ? true : false;
+
+  objectToWrite.keywords = program.args;
+
   if(program.warn)
     objectToWrite.warn = program.warn;
   objectToWrite.encrypted = true;
@@ -209,7 +217,6 @@ if (program.githubToken != null) { github.auth(program.githubToken); }
     toDoListIdP.then(function(toDoListId) {
       inProgressListIdP.then(function(inProgressListId) {
         doneListIdP.then(function(doneListId) {
-const keywords = program.args;
 
 const labelsP = trello.getLabelsOnBoard(program.trelloBoard)
 .then(function(labels) {
@@ -344,7 +351,10 @@ const checkIssuesP = fullDownloadP
     }
     else 
     issue.move = false;
-    if (issue.trello.card.desc !== issue.parsed.desc) { issue.updateDesc = true; }
+    if (issue.trello.card.desc !== issue.parsed.desc) issue.updateDesc = true;
+    // Check, everytime is updating the dueDate
+    if((!issue.trello.card.due && issue.parsed.dueDate) || (issue.trello.card.due && new Date(issue.trello.card.due) != issue.parsed.dueDate)) issue.updateDue = true;
+    if(issue.parsed.dueState != issue.trello.card.dueComplete) issue.updateDueState = true;
     let newComments = [];
     for (let mention of Array.from(issue.parsed.mentions)) {
       if (JSON.stringify(issue.trello.comments).indexOf(mention.html_url) < 0) {
@@ -358,21 +368,13 @@ const checkIssuesP = fullDownloadP
     if (newComments.length) { issue.newComments = newComments; }
     const newLabels = (Array.from(issue.parsed.labels).filter((label) => !Array.from(issue.trello.labels).includes(label)));
     if (newLabels.length) { issue.newLabels = newLabels; }
-    if ((issue.github.issue != null ? issue.github.issue.state : undefined) === 'closed') {
-      if (!Array.from(issue.trello.labels).includes('CLOSED')) {
-        if (issue.newLabels) {
-          issue.newLabels.push('CLOSED');
-        } else {
-          issue.newLabels = ['CLOSED'];
-        }
-      }
-    }
   } else {
     if (issue.parsed.labels.length || !keywords.length) {
       issue.create = true;
       return totalIssuesToCreate++;
     }
-  }}).tap(function(issues) {
+  }
+}).tap(function(issues) {
   let issue;
   console.log(`\n\nTotal number of cards currently on Trello: ${totalIssuesOnTrello}`);
   console.log(`Total number of cards to move: ${totalIssuesToMove}`);
@@ -399,6 +401,14 @@ const checkIssuesP = fullDownloadP
       if (issue.updateDesc) {
         console.log("  - Updated description:");
         console.log(issue.parsed.desc.replace(/^/mg, '      '));
+      }
+      if(issue.updateDue) {
+        console.log("  - Updated due");
+        console.log(issue.parsed.dueDate);
+      }
+      if(issue.updateDueState) {
+        console.log("  - Updated due state");
+        console.log("Updated to: " + issue.parsed.dueState ? "Completed" : "Pending");
       }
       console.log('');
     }
@@ -444,14 +454,14 @@ if (program.commit) {
         return listIdP
         .then(function(inboxListId) {
           console.log(`Adding issue \"${issue.parsed.title}\"`);
-
-          return trello.addCardAsync(inboxListId, issue.parsed.title, issue.parsed.desc);}).tap(function(card) {
+          return trello.addCardAsync(inboxListId, issue.parsed.title, issue.parsed.desc, issue.parsed.dueDate, issue.parsed.dueState);}).tap(function(card) {
           let newComments = (Array.from(issue.parsed.mentions).map((mention) => mention.text));
           if (newComments.length) { newComments = [newComments.reverse().join('\n')]; }
           if (program.fullText) {
             newComments = newComments.concat(issue.parsed.comments);
           }
           enqueueAddComments(card.id, issue.parsed.title, newComments);
+          console.log(issue.parsed.labels);
           issue.parsed.labels.forEach(label => queue.add(() => labelsP.then(function(trelloLabels) {
             console.log(`Adding label \"${label}\" to issue \"${issue.parsed.title}\"`);
             return trello.addLabelToCardAsync(card.id, trelloLabels.nameToId[label]);})));
@@ -465,6 +475,19 @@ if (program.commit) {
       queue.add(function() {
         console.log(`Updating description of issue \"${issue.trello.card.name}\"`);
         return trello.updateCardDescriptionAsync(issue.trello.card.id, issue.parsed.desc);
+      });
+    }
+    console.log(issue.updateDue);
+    if(issue.updateDue) {
+      queue.add(function() {
+        console.log(`Updating due of issue \"${issue.trello.card.name}\"`);
+        return trello.updateDueDateAsync(issue.trello.card.id, issue.parsed.dueDate);
+      });
+    }
+    if(issue.updateDueState) {
+      queue.add(function() {
+        console.log(`Updating due state of issue \"${issue.trello.card.name}\"`);
+        return trello.updateDueStateAsync(issue.trello.card.id, issue.parsed.dueState);
       });
     }
     if (issue.newComments) {
