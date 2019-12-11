@@ -46,3 +46,4 @@ https://github.com/settings/tokens
 To do
 
 - Sync deleted labels
+- Add Checklists
